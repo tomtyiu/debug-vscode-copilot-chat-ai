@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.37.0",
+	"version": "0.38.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.109.0-20260124",
+		"vscode": "^1.110.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -89,6 +89,8 @@
 	"main": "./dist/extension",
 	"l10n": "./l10n",
 	"enabledApiProposals": [
+		"agentSessionsWorkspace",
+		"chatHooks@2",
 		"extensionsAny",
 		"newSymbolNamesProvider",
 		"interactive",
@@ -112,7 +114,7 @@
 		"mappedEditsProvider",
 		"aiRelatedInformation",
 		"aiSettingsSearch",
-		"chatParticipantAdditions",
+		"chatParticipantAdditions@1",
 		"defaultChatParticipant@4",
 		"contribSourceControlInputBoxMenu",
 		"authLearnMore",
@@ -141,7 +143,8 @@
 		"chatPromptFiles",
 		"mcpServerDefinitions",
 		"tabInputMultiDiff",
-		"workspaceTrust"
+		"workspaceTrust",
+		"environmentPower"
 	],
 	"contributes": {
 		"languageModelTools": [
@@ -176,6 +179,7 @@
 				"icon": "$(search)",
 				"userDescription": "%copilot.tools.searchSubagent.description%",
 				"modelDescription": "Launch an iterative search-focused subagent that orchestrates semantic_search, grep_search, file_search and read_file tool calls to explore and gather relevant workspace code for a natural language query.\n CALL THIS FOR ANY TASK THAT REQUIRES CODEBASE EXPLORATION!\n\nRemember:\n1. Perform tool calls in parallel whenever possible\n2. Avoid redundant calls -- don't repeat identical searches.\n3. Stop once you have high-confidence, non-duplicative snippets covering the query scope.\n\nReturns: A list of relevant files/snippet locations in the workspace.\n\nInput fields:\n- query: Natural language description of what to search for.\n- description: Short user-visible invocation message. \n- details: 2-3 sentences detailing the objective of the search agent.",
+				"when": "config.github.copilot.chat.searchSubagent.enabled",
 				"tags": [
 					"vscode_codesearch"
 				],
@@ -508,30 +512,6 @@
 					"enable_other_tool_copilot_findFiles",
 					"enable_other_tool_copilot_runTests"
 				]
-			},
-			{
-				"name": "copilot_updateUserPreferences",
-				"toolReferenceName": "updateUserPreferences",
-				"displayName": "%copilot.tools.updateUserPreferences.name%",
-				"modelDescription": "Update the user's preferences file with new information about the user and their coding preferences, based on the current chat history.",
-				"canBeReferencedInPrompt": true,
-				"tags": [],
-				"inputSchema": {
-					"type": "object",
-					"properties": {
-						"facts": {
-							"type": "array",
-							"items": {
-								"type": "string"
-							},
-							"description": "An array of new user preferences to remember."
-						}
-					},
-					"required": [
-						"facts"
-					]
-				},
-				"when": "config.github.copilot.chat.enableUserPreferences"
 			},
 			{
 				"name": "copilot_memory",
@@ -1187,7 +1167,7 @@
 				"toolReferenceName": "askQuestions",
 				"displayName": "%copilot.tools.askQuestions.name%",
 				"userDescription": "%copilot.tools.askQuestions.description%",
-				"modelDescription": "Ask the user questions to clarify intent, validate assumptions, or choose between implementation approaches. Prefer proposing a sensible default so users can confirm quickly.\n\nOnly use this tool when the user's answer provides information you cannot determine or reasonably assume yourself. This tool is for gathering information, not for reporting status or problems. If a question has an obvious best answer, take that action instead of asking.\n\nWhen to use:\n- Clarify ambiguous requirements before proceeding\n- Get user preferences on implementation choices\n- Confirm decisions that meaningfully affect outcome\n\nWhen NOT to use:\n- The answer is determinable from code or context\n- Asking for permission to continue or abort\n- Confirming something you can reasonably decide yourself\n- Reporting a problem (instead, attempt to resolve it)\n\nQuestion guidelines:\n- Batch related questions into a single call (max 4 questions, 2-6 options each; omit options for free text input)\n- Provide brief context explaining what is being decided and why\n- Mark one option as `recommended` with a short justification\n- Keep options mutually exclusive for single-select; use `multiSelect: true` only when choices are additive and phrase the question accordingly\n\nAfter receiving answers:\n- Incorporate decisions and continue without re-asking unless requirements change\n\nAn \"Other\" option is automatically shown to users—do not add your own.",
+				"modelDescription": "Ask the user questions to clarify intent, validate assumptions, or choose between implementation approaches. Prefer proposing a sensible default so users can confirm quickly.\n\nOnly use this tool when the user's answer provides information you cannot determine or reasonably assume yourself. This tool is for gathering information, not for reporting status or problems. If a question has an obvious best answer, take that action instead of asking.\n\nWhen to use:\n- Clarify ambiguous requirements before proceeding\n- Get user preferences on implementation choices\n- Confirm decisions that meaningfully affect outcome\n\nWhen NOT to use:\n- The answer is determinable from code or context\n- Asking for permission to continue or abort\n- Confirming something you can reasonably decide yourself\n- Reporting a problem (instead, attempt to resolve it)\n\nQuestion guidelines:\n- NEVER use `recommended` for quizzes or polls. Recommended options are PRE-SELECTED and visible to users, which would reveal answers\n- Batch related questions into a single call (max 4 questions, 2-6 options each; omit options for free text input)\n- Provide brief context explaining what is being decided and why\n- Only mark an option as `recommended` with a short justification to suggest YOUR preferred implementation choice\n- Keep options mutually exclusive for single-select; use `multiSelect: true` only when choices are additive and phrase the question accordingly\n\nAfter receiving answers:\n- Incorporate decisions and continue without re-asking unless requirements change\n\nAn \"Other\" option is automatically shown to users—do not add your own.",
 				"icon": "$(question)",
 				"when": "config.github.copilot.chat.askQuestions.enabled",
 				"inputSchema": {
@@ -1265,6 +1245,7 @@
 				"displayName": "%copilot.tools.switchAgent.name%",
 				"userDescription": "%copilot.tools.switchAgent.description%",
 				"modelDescription": "Switch to the Plan agent before exploring the codebase and refining implementation of a feature. The Plan agent provides specialized tools to explore the codebase, understand system architecture, and iterate with the user through clarifying questions and context gathering.\n\nPLAN AGENT BEHAVIOR:\nThe Plan agent is a specialized assistant designed for research, exploration, and planning. It:\n- Has access to powerful codebase exploration tools (search, read files, list directories, find symbols)\n- Can ask clarifying questions to understand requirements better\n- Proposes implementation approaches and validates them with the user\n- Gathers comprehensive context before suggesting changes\n- Handles complex, multi-file refactoring and architectural decisions\n- Summarizes findings and creates detailed plans for implementation\n\nEXAMPLES OF WHEN TO SWITCH TO PLAN:\n- \"I want to refactor the data flow in this component\" → Plan can explore the component dependencies\n- \"How should I integrate this new feature?\" → Plan can investigate the architecture and propose approaches\n- \"Find all usages of this pattern and suggest a better way\" → Plan can search comprehensively and report findings\n- \"I need to migrate from X to Y\" → Plan can understand current structure and propose migration strategy\n\nUSE THIS TOOL IMMEDIATELY AND PROACTIVELY BEFORE ANY OTHER TOOL CALLS OR CODE EXPLORATION WHEN:\n- The user's request is ambiguous, underspecified, or could be interpreted multiple ways\n- You need to explore the codebase, gather context, or understand the architecture - CODE EXPLORATION IS THE PLAN AGENT'S PRIMARY RESPONSIBILITY\n- The task involves multiple files, complex refactoring, or architectural decisions\n- You want to propose an approach and validate it with the user before implementing\n- The user explicitly asks for a plan or wants to discuss the approach first\n- You're uncertain whether you have sufficient context to confidently implement the complete change\n\nCRITICAL: If you are about to call any code exploration tools (readFile, findTextInFiles, searchCodebase, listDirectory, etc.), STOP immediately and switch to the Plan agent first. Code exploration, context gathering, and architectural understanding belong to the Plan agent, not the inline editor.\n\nYou should ONLY skip using this tool when:\n- The task is completely straightforward with explicit, detailed implementation instructions\n- You already have complete and specific context about exactly what needs to change and where\n- The user has explicitly instructed you to skip planning and just make the change",
+				"when": "config.github.copilot.chat.switchAgent.enabled",
 				"icon": "$(arrow-swap)",
 				"inputSchema": {
 					"type": "object",
@@ -2151,6 +2132,12 @@
 			{
 				"icon": "$(chat-sparkle)",
 				"title": "%copilot.title%",
+				"content": "%github.copilot.viewsWelcome.gitHubLoginFailed%",
+				"when": "github.copilot.interactiveSession.gitHubLoginFailed"
+			},
+			{
+				"icon": "$(chat-sparkle)",
+				"title": "%copilot.title%",
 				"content": "%github.copilot.viewsWelcome.contactSupport%",
 				"when": "github.copilot.interactiveSession.contactSupport"
 			},
@@ -2619,6 +2606,16 @@
 				"icon": "$(export)"
 			},
 			{
+				"command": "github.copilot.chat.debug.exportTrajectories",
+				"title": "Export Agent Trajectories",
+				"category": "Chat"
+			},
+			{
+				"command": "github.copilot.chat.debug.exportSingleTrajectory",
+				"title": "Export Trajectory...",
+				"category": "Chat"
+			},
+			{
 				"command": "github.copilot.nes.captureExpected.start",
 				"title": "Record Expected Edit (NES)",
 				"category": "Copilot"
@@ -3067,6 +3064,26 @@
 						"tags": [
 							"preview"
 						]
+					},
+					"github.copilot.chat.anthropic.useMessagesApi": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.useMessagesApi%",
+						"tags": [
+							"preview",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.anthropic.thinking.budgetTokens": {
+						"type": "number",
+						"markdownDescription": "%github.copilot.config.anthropic.thinking.budgetTokens%",
+						"minimum": 0,
+						"maximum": 32000,
+						"default": 16000,
+						"tags": [
+							"preview",
+							"onExp"
+						]
 					}
 				}
 			},
@@ -3117,6 +3134,14 @@
 						"tags": [
 							"experimental",
 							"onExp"
+						]
+					},
+					"github.copilot.chat.switchAgent.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.switchAgent.enabled%",
+						"tags": [
+							"experimental"
 						]
 					},
 					"github.copilot.chat.imageUpload.enabled": {
@@ -3543,24 +3568,6 @@
 						],
 						"description": "%github.copilot.config.alternateGeminiModelFPrompt.enabled%"
 					},
-					"github.copilot.chat.alternateZaiPrompt.enabled": {
-						"type": "boolean",
-						"default": false,
-						"tags": [
-							"experimental",
-							"onExp"
-						],
-						"description": "%github.copilot.config.alternateZaiPrompt.enabled%"
-					},
-					"github.copilot.chat.anthropic.useMessagesApi": {
-						"type": "boolean",
-						"default": true,
-						"markdownDescription": "%github.copilot.config.useMessagesApi%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.anthropic.contextEditing.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -3605,17 +3612,6 @@
 						"enum": [
 							"off",
 							"detailed"
-						]
-					},
-					"github.copilot.chat.anthropic.thinking.budgetTokens": {
-						"type": "number",
-						"markdownDescription": "%github.copilot.config.anthropic.thinking.budgetTokens%",
-						"minimum": 0,
-						"maximum": 32000,
-						"default": 4000,
-						"tags": [
-							"experimental",
-							"onExp"
 						]
 					},
 					"github.copilot.chat.anthropic.tools.websearch.enabled": {
@@ -4282,7 +4278,6 @@
 						"markdownDescription": "%github.copilot.config.agentCustomizationSkill.enabled%",
 						"tags": [
 							"advanced",
-							"experimental",
 							"onExp"
 						]
 					},
@@ -4290,6 +4285,34 @@
 						"type": "boolean",
 						"default": false,
 						"markdownDescription": "%github.copilot.config.searchSubagent.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.searchSubagent.useAgenticProxy": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.searchSubagent.useAgenticProxy%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.searchSubagent.model": {
+						"type": "string",
+						"default": "",
+						"markdownDescription": "%github.copilot.config.searchSubagent.model%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.searchSubagent.toolCallLimit": {
+						"type": "number",
+						"default": 4,
+						"markdownDescription": "%github.copilot.config.searchSubagent.toolCallLimit%",
 						"tags": [
 							"advanced",
 							"experimental",
@@ -4401,7 +4424,7 @@
 			"chat/input/editing/sessionToolbar": [
 				{
 					"command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
-					"when": "chatSessionType == copilotcli",
+					"when": "chatSessionType == copilotcli && workbenchState != empty",
 					"group": "navigation@0"
 				},
 				{
@@ -4425,6 +4448,10 @@
 				}
 			],
 			"commandPalette": [
+				{
+					"command": "github.copilot.chat.debug.exportSingleTrajectory",
+					"when": "false"
+				},
 				{
 					"command": "github.copilot.chat.triggerPermissiveSignIn",
 					"when": "false"
@@ -4720,6 +4747,11 @@
 					"command": "github.copilot.chat.debug.exportPromptLogsAsJson",
 					"when": "view == copilot-chat && viewItem == chatprompt",
 					"group": "export@3"
+				},
+				{
+					"command": "github.copilot.chat.debug.exportSingleTrajectory",
+					"when": "view == copilot-chat && viewItem == chatprompt",
+					"group": "export@4"
 				}
 			],
 			"searchPanel/aiResults/commands": [
@@ -4971,7 +5003,7 @@
 			"multiDiffEditor/content": [
 				{
 					"command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges",
-					"when": "resourceScheme == copilotcli-worktree-changes"
+					"when": "resourceScheme == copilotcli-worktree-changes && workbenchState != empty"
 				}
 			],
 			"chat/chatSessions": [
@@ -4997,7 +5029,7 @@
 				},
 				{
 					"command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges",
-					"when": "chatSessionType == copilotcli",
+					"when": "chatSessionType == copilotcli && workbenchState != empty",
 					"group": "3_apply@0"
 				},
 				{
@@ -5202,7 +5234,7 @@
 						"id": "copilot.setup.signIn",
 						"title": "%github.copilot.walkthrough.setup.signIn.title%",
 						"description": "%github.copilot.walkthrough.setup.signIn.description%",
-						"when": "chatEntitlementSignedOut && !view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && !github.copilot.interactiveSession.individual.disabled && !github.copilot.interactiveSession.individual.expired && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited",
+						"when": "chatEntitlementSignedOut && !view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && !github.copilot.interactiveSession.individual.disabled && !github.copilot.interactiveSession.individual.expired && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited && !github.copilot.interactiveSession.gitHubLoginFailed",
 						"media": {
 							"video": {
 								"dark": "https://vscodewalkthroughs.z1.web.core.windows.net/v0.26/workspace.mp4",
@@ -5217,7 +5249,7 @@
 						"id": "copilot.setup.signInNoAction",
 						"title": "%github.copilot.walkthrough.setup.signIn.title%",
 						"description": "%github.copilot.walkthrough.setup.noAction.description%",
-						"when": "chatEntitlementSignedOut && view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && !github.copilot.interactiveSession.individual.disabled && !github.copilot.interactiveSession.individual.expired && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited",
+						"when": "chatEntitlementSignedOut && view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && !github.copilot.interactiveSession.individual.disabled && !github.copilot.interactiveSession.individual.expired && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited && !github.copilot.interactiveSession.gitHubLoginFailed",
 						"media": {
 							"video": {
 								"dark": "https://vscodewalkthroughs.z1.web.core.windows.net/v0.26/workspace.mp4",
@@ -5232,7 +5264,7 @@
 						"id": "copilot.setup.signUp",
 						"title": "%github.copilot.walkthrough.setup.signUp.title%",
 						"description": "%github.copilot.walkthrough.setup.signUp.description%",
-						"when": "chatPlanCanSignUp && !view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && (github.copilot.interactiveSession.individual.disabled || github.copilot.interactiveSession.individual.expired) && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited",
+						"when": "chatPlanCanSignUp && !view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && (github.copilot.interactiveSession.individual.disabled || github.copilot.interactiveSession.individual.expired) && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited && !github.copilot.interactiveSession.gitHubLoginFailed",
 						"media": {
 							"video": {
 								"dark": "https://vscodewalkthroughs.z1.web.core.windows.net/v0.26/workspace.mp4",
@@ -5247,7 +5279,7 @@
 						"id": "copilot.setup.signUpNoAction",
 						"title": "%github.copilot.walkthrough.setup.signUp.title%",
 						"description": "%github.copilot.walkthrough.setup.noAction.description%",
-						"when": "chatPlanCanSignUp && view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && (github.copilot.interactiveSession.individual.disabled || github.copilot.interactiveSession.individual.expired) && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited",
+						"when": "chatPlanCanSignUp && view.workbench.panel.chat.view.copilot.visible && !github.copilot-chat.activated && !github.copilot.offline && (github.copilot.interactiveSession.individual.disabled || github.copilot.interactiveSession.individual.expired) && !github.copilot.interactiveSession.enterprise.disabled && !github.copilot.interactiveSession.contactSupport && !github.copilot.interactiveSession.invalidToken && !github.copilot.interactiveSession.rateLimited && !github.copilot.interactiveSession.gitHubLoginFailed",
 						"media": {
 							"video": {
 								"dark": "https://vscodewalkthroughs.z1.web.core.windows.net/v0.26/workspace.mp4",
@@ -5367,13 +5399,13 @@
 			{
 				"type": "claude-code",
 				"name": "claude",
-				"displayName": "Claude Agent",
-				"icon": "$(code)",
+				"displayName": "Claude",
+				"icon": "$(claude)",
 				"welcomeTitle": "Claude Agent",
 				"welcomeMessage": "Powered by the same agent as Claude Code",
 				"inputPlaceholder": "Run local tasks with Claude, type `#` for adding context",
 				"order": 3,
-				"description": "The Claude Agent works on your local machine",
+				"description": "%github.copilot.session.providerDescription.claude%",
 				"when": "config.github.copilot.chat.claudeAgent.enabled && !github.copilot.previewFeaturesDisabled",
 				"canDelegate": true,
 				"capabilities": {
@@ -5413,14 +5445,14 @@
 			{
 				"type": "copilotcli",
 				"name": "cli",
-				"displayName": "Background Agent",
+				"displayName": "Background",
 				"icon": "$(worktree)",
 				"welcomeTitle": "Background Agent",
 				"welcomeMessage": "Run tasks in the background",
 				"inputPlaceholder": "Run tasks in the background, type `#` for adding context",
-				"order": 2,
+				"order": 1,
 				"canDelegate": true,
-				"description": "Delegate tasks to a background agent.",
+				"description": "%github.copilot.session.providerDescription.background%",
 				"when": "config.github.copilot.chat.backgroundAgent.enabled",
 				"capabilities": {
 					"supportsFileAttachments": true,
@@ -5446,14 +5478,14 @@
 					"copilot-swe-agent"
 				],
 				"name": "cloud",
-				"displayName": "Cloud Agent",
+				"displayName": "Cloud",
 				"icon": "$(cloud)",
 				"welcomeTitle": "Cloud Agent",
 				"welcomeMessage": "Delegate tasks to the cloud",
 				"inputPlaceholder": "Delegate tasks to the cloud, type `#` for adding context",
-				"order": 1,
+				"order": 2,
 				"canDelegate": true,
-				"description": "Delegate tasks to the GitHub Copilot Cloud Agent. The agent works asynchronously in the cloud to implement changes, iterates via chat, and can create or update pull requests as needed.",
+				"description": "%github.copilot.session.providerDescription.cloud%",
 				"when": "config.github.copilot.chat.cloudAgent.enabled",
 				"capabilities": {
 					"supportsFileAttachments": true
@@ -5512,7 +5544,7 @@
 		"prepare": "husky",
 		"vscode-dts:dev": "node node_modules/@vscode/dts/index.js dev && mv vscode.proposed.*.ts src/extension",
 		"vscode-dts:main": "node node_modules/@vscode/dts/index.js main && mv vscode.d.ts src/extension",
-		"build": "node .esbuild.ts",
+		"build": "node .esbuild.ts --sourcemaps",
 		"compile": "node .esbuild.ts --dev",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node .esbuild.ts --watch --dev",
@@ -5629,7 +5661,7 @@
 		"shiki": "~1.15.0",
 		"sinon": "^21.0.0",
 		"source-map-support": "^0.5.21",
-		"tar": "^7.5.4",
+		"tar": "^7.5.7",
 		"ts-dedent": "^2.2.0",
 		"tsx": "^4.20.3",
 		"typescript": "^5.8.3",
@@ -5646,10 +5678,10 @@
 		"zod": "3.25.76"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.2.5",
-		"@anthropic-ai/sdk": "^0.71.2",
-		"@github/blackbird-external-ingest-utils": "^0.1.0",
-		"@github/copilot": "^0.0.388",
+		"@anthropic-ai/claude-agent-sdk": "0.2.31",
+		"@anthropic-ai/sdk": "^0.72.1",
+		"@github/blackbird-external-ingest-utils": "^0.2.0",
+		"@github/copilot": "^0.0.400",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",
