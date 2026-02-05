@@ -18,6 +18,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { commands, type WorkspaceFolder } from 'vscode';
 import { ChatReplayResponses, ChatStep } from '../common/chatReplayResponses';
+import { advanceReplay, beginReplay, createReplaySessionState, getCurrentStep, ReplaySessionState } from '../common/replaySessionStepper';
 import { parseReplay } from '../node/replayParser';
 
 interface launchArgs extends DebugProtocol.LaunchRequestArguments { stopOnEntry: boolean; program: string }
@@ -29,7 +30,7 @@ export class ChatReplayDebugSession extends LoggingDebugSession {
 	private _workspaceFolder: WorkspaceFolder | undefined;
 	private _program: string = '';
 	private _chatSteps: ChatStep[] = [];
-	private _currentIndex = -1;
+	private _sessionState: ReplaySessionState = createReplaySessionState();
 	private _stopOnEntry = true;
 	private _variableHandles = new Handles<{ step: ChatStep }>();
 	private _replay = ChatReplayResponses.getInstance();
@@ -77,7 +78,7 @@ export class ChatReplayDebugSession extends LoggingDebugSession {
 				return;
 			}
 
-			this._currentIndex = 0;
+			beginReplay(this._sessionState);
 			this._replay = ChatReplayResponses.create(() => this.sendEvent(new TerminatedEvent()));
 			startReplayInChat();
 
@@ -170,7 +171,7 @@ export class ChatReplayDebugSession extends LoggingDebugSession {
 
 	private replayNextResponse(step: ChatStep): void {
 		this._replay.replayResponse(step);
-		this._currentIndex++;
+		advanceReplay(this._sessionState);
 
 		// Send a stopped event to indicate we are at the next step
 		this.sendEvent(new StoppedEvent('next', ChatReplayDebugSession.THREAD_ID));
@@ -183,12 +184,7 @@ export class ChatReplayDebugSession extends LoggingDebugSession {
 	}
 
 	private currentStep(): ChatStep | undefined {
-		if (this._currentIndex >= 0 && this._currentIndex < this._chatSteps.length) {
-			return this._chatSteps[this._currentIndex];
-		}
-
-		this._currentIndex++;
-		return undefined;
+		return getCurrentStep(this._sessionState, this._chatSteps);
 	}
 }
 
