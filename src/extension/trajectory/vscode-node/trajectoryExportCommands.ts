@@ -15,6 +15,7 @@ import { TrajectoryLoggerAdapter } from '../../../platform/trajectory/node/traje
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IExtensionContribution } from '../../common/contributions';
 import { renderToolResultToStringNoBudget } from '../../prompt/vscode-node/requestLoggerToolResult';
+import { collectTrajectoryWithSubagents } from '../common/trajectoryExport';
 
 const exportTrajectoriesCommand = 'github.copilot.chat.debug.exportTrajectories';
 const exportSingleTrajectoryCommand = 'github.copilot.chat.debug.exportSingleTrajectory';
@@ -172,7 +173,7 @@ export class TrajectoryExportCommands extends Disposable implements IExtensionCo
 		}
 
 		// Collect the main trajectory and all referenced subagent trajectories
-		const trajectoriesToExport = this.collectTrajectoryWithSubagents(mainTrajectory, allTrajectories);
+		const trajectoriesToExport = collectTrajectoryWithSubagents(mainTrajectory, allTrajectories);
 
 		if (trajectoriesToExport.size === 0) {
 			vscode.window.showWarningMessage('No trajectory data to export.');
@@ -237,41 +238,6 @@ export class TrajectoryExportCommands extends Disposable implements IExtensionCo
 		}
 	}
 
-	/**
-	 * Recursively collect a trajectory and all its referenced subagent trajectories
-	 */
-	private collectTrajectoryWithSubagents(
-		mainTrajectory: IAgentTrajectory,
-		allTrajectories: Map<string, IAgentTrajectory>
-	): Map<string, IAgentTrajectory> {
-		const result = new Map<string, IAgentTrajectory>();
-		const visited = new Set<string>();
-
-		const collect = (trajectory: IAgentTrajectory) => {
-			if (visited.has(trajectory.session_id)) {
-				return;
-			}
-			visited.add(trajectory.session_id);
-			result.set(trajectory.session_id, trajectory);
-
-			// Find subagent references in this trajectory's steps
-			const steps: ITrajectoryStep[] = Array.isArray(trajectory?.steps) ? trajectory.steps : [];
-			for (const step of steps) {
-				const results: IObservationResult[] = Array.isArray(step.observation?.results) ? step.observation.results : [];
-				for (const r of results) {
-					for (const ref of r.subagent_trajectory_ref ?? []) {
-						const subagentTrajectory = allTrajectories.get(ref.session_id);
-						if (subagentTrajectory) {
-							collect(subagentTrajectory);
-						}
-					}
-				}
-			}
-		};
-
-		collect(mainTrajectory);
-		return result;
-	}
 
 	private sanitizeFilename(name: string): string {
 		// Remove invalid filename characters
