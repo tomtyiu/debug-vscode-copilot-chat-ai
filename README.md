@@ -1,6 +1,6 @@
 # GitHub Copilot - Your AI peer programmer
 
-This will be Github Copilot for debugging code
+This will be Github Copilot for debugging code with recursive self improvement experiment
 
 **[GitHub Copilot](https://code.visualstudio.com/docs/copilot/overview)** is an AI peer programming tool that helps you write code faster and smarter.
 
