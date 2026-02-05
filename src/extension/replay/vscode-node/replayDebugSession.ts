@@ -18,6 +18,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { commands, type WorkspaceFolder } from 'vscode';
 import { ChatReplayResponses, ChatStep } from '../common/chatReplayResponses';
+import { chatStepToDebugVariables } from '../common/replayDebugVariables';
 import { advanceReplay, beginReplay, createReplaySessionState, getCurrentStep, ReplaySessionState } from '../common/replaySessionStepper';
 import { parseReplay } from '../node/replayParser';
 
@@ -132,7 +133,21 @@ export class ChatReplayDebugSession extends LoggingDebugSession {
 	}
 
 	protected override variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): void {
-		response.body = { variables: [] };
+		const handle = this._variableHandles.get(args.variablesReference);
+		if (!handle) {
+			response.body = { variables: [] };
+			this.sendResponse(response);
+			return;
+		}
+
+		response.body = {
+			variables: chatStepToDebugVariables(handle.step).map(variable => ({
+				name: variable.name,
+				value: variable.value,
+				type: variable.type,
+				variablesReference: 0
+			}))
+		};
 		this.sendResponse(response);
 	}
 
