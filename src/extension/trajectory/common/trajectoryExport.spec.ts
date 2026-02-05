@@ -41,6 +41,23 @@ describe('collectTrajectoryWithSubagents', () => {
 		expect([...collected.keys()]).toEqual(['main', 'sub-1', 'sub-2']);
 	});
 
+	it('deduplicates repeated references while keeping traversal order deterministic', () => {
+		const main = trajectory('main', ['sub-1', 'sub-2', 'sub-1']);
+		const sub1 = trajectory('sub-1', ['sub-3']);
+		const sub2 = trajectory('sub-2', ['sub-3']);
+		const sub3 = trajectory('sub-3');
+
+		const all = new Map([
+			[main.session_id, main],
+			[sub1.session_id, sub1],
+			[sub2.session_id, sub2],
+			[sub3.session_id, sub3]
+		]);
+
+		const collected = collectTrajectoryWithSubagents(main, all);
+		expect([...collected.keys()]).toEqual(['main', 'sub-1', 'sub-3', 'sub-2']);
+	});
+
 	it('handles cycles and missing references deterministically', () => {
 		const main = trajectory('main', ['sub-1', 'missing']);
 		const sub1 = trajectory('sub-1', ['main']);
