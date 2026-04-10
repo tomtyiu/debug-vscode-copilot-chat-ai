@@ -54,6 +54,24 @@ export class ClaudeChatSessionItemProvider extends Disposable implements vscode.
 }
 
 export namespace ClaudeSessionUri {
+	const VALID_SESSION_ID_REGEX = /^[A-Za-z0-9-]+$/;
+
+	function assertValidSessionId(sessionId: string): void {
+		const normalized = sessionId.toLowerCase();
+		if (
+			sessionId.length === 0 ||
+			sessionId.includes('/') ||
+			sessionId.includes('\\') ||
+			sessionId.includes('..') ||
+			normalized.includes('%2e') ||
+			normalized.includes('%2f') ||
+			normalized.includes('%5c') ||
+			!VALID_SESSION_ID_REGEX.test(sessionId)
+		) {
+			throw new Error('Invalid Claude Code session id');
+		}
+	}
+
 	export function forSessionId(sessionId: string): vscode.Uri {
 		return vscode.Uri.from({ scheme: ClaudeChatSessionItemProvider.claudeSessionType, path: '/' + sessionId });
 	}
@@ -63,6 +81,17 @@ export namespace ClaudeSessionUri {
 			throw new Error('Invalid resource scheme for Claude Code session');
 		}
 
-		return resource.path.slice(1);
+		const rawPath = resource.path.startsWith('/') ? resource.path.slice(1) : resource.path;
+		assertValidSessionId(rawPath);
+
+		let decodedId: string;
+		try {
+			decodedId = decodeURIComponent(rawPath);
+		} catch {
+			throw new Error('Invalid Claude Code session id');
+		}
+
+		assertValidSessionId(decodedId);
+		return decodedId;
 	}
 }

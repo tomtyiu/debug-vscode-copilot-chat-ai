@@ -113,6 +113,7 @@ export interface IClaudeCodeSessionService {
 
 export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 	declare _serviceBrand: undefined;
+	private static readonly _validSessionIdRegex = /^[A-Za-z0-9-]+$/;
 
 	// Lightweight metadata cache for getAllSessions (keyed by project dir URI)
 	private _metadataCache = new ResourceMap<readonly IClaudeCodeSessionInfo[]>();
@@ -123,6 +124,7 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 
 	// Track session directories for subagent detection
 	private _sessionDirs = new ResourceMap<Set<string>>();
+	private _sessionFileIds = new ResourceMap<Set<string>>();
 
 	// Debugging information
 	private _lastParseErrors: ParseError[] = [];
@@ -175,7 +177,11 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 			return cached;
 		}
 
-		const targetId = resource.path.slice(1); // Remove leading '/' from path
+		const targetId = this._getValidatedSessionId(resource);
+		if (targetId === undefined) {
+			return undefined;
+		}
+
 		const slugs = this._getProjectSlugs();
 
 		for (const slug of slugs) {
@@ -184,13 +190,20 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 			}
 
 			const projectDirUri = URI.joinPath(this._nativeEnvService.userHome, '.claude', 'projects', slug);
-			const sessionFileUri = URI.joinPath(projectDirUri, `${targetId}.jsonl`);
+			const cachedMetadata = await this._getCachedMetadataIfValid(projectDirUri, token);
+			if (cachedMetadata === null) {
+				const freshMetadata = await this._loadSessionMetadataFromDisk(projectDirUri, token);
+				this._metadataCache.set(projectDirUri, freshMetadata);
+			}
 
-			// Check if this file exists
-			try {
-				await this._fileSystem.stat(sessionFileUri);
-			} catch {
-				continue; // File doesn't exist in this project dir
+			const enumeratedSessionIds = this._sessionFileIds.get(projectDirUri);
+			if (!enumeratedSessionIds?.has(targetId)) {
+				continue;
+			}
+
+			const sessionFileUri = URI.joinPath(projectDirUri, `${targetId}.jsonl`);
+			if (!isEqualOrParent(sessionFileUri, projectDirUri)) {
+				continue;
 			}
 
 			// Load and parse the full session
@@ -365,11 +378,14 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 	): Promise<readonly IClaudeCodeSessionInfo[]> {
 		const entries = await this._tryReadDirectory(projectDirUri);
 		if (entries.length === 0) {
+			this._sessionDirs.set(projectDirUri, new Set<string>());
+			this._sessionFileIds.set(projectDirUri, new Set<string>());
 			return [];
 		}
 
 		// Track session directories for later use in getSession
 		const sessionDirs = new Set<string>();
+		const sessionFileIds = new Set<string>();
 		const metadataTasks: Promise<{ metadata: IClaudeCodeSessionInfo | null; fileUri: URI } | null>[] = [];
 
 		for (const [name, type] of entries) {
@@ -383,15 +399,17 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 			}
 
 			const sessionId = name.slice(0, -6);
-			if (sessionId.length === 0) {
+			if (!this._isValidSessionId(sessionId)) {
 				continue;
 			}
+			sessionFileIds.add(sessionId);
 
 			const fileUri = URI.joinPath(projectDirUri, name);
 			metadataTasks.push(this._extractSessionMetadata(sessionId, fileUri, token));
 		}
 
 		this._sessionDirs.set(projectDirUri, sessionDirs);
+		this._sessionFileIds.set(projectDirUri, sessionFileIds);
 
 		const results = await Promise.allSettled(metadataTasks);
 		if (token.isCancellationRequested) {
@@ -414,6 +432,34 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 		}
 
 		return metadataList;
+	}
+
+	private _isValidSessionId(sessionId: string): boolean {
+		const normalized = sessionId.toLowerCase();
+		return (
+			sessionId.length > 0 &&
+			!sessionId.includes('/') &&
+			!sessionId.includes('\\') &&
+			!sessionId.includes('..') &&
+			!normalized.includes('%2e') &&
+			!normalized.includes('%2f') &&
+			!normalized.includes('%5c') &&
+			ClaudeCodeSessionService._validSessionIdRegex.test(sessionId)
+		);
+	}
+
+	private _getValidatedSessionId(resource: URI): string | undefined {
+		const rawPath = resource.path.startsWith('/') ? resource.path.slice(1) : resource.path;
+		if (!this._isValidSessionId(rawPath)) {
+			return undefined;
+		}
+
+		try {
+			const decodedId = decodeURIComponent(rawPath);
+			return this._isValidSessionId(decodedId) ? decodedId : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	/**

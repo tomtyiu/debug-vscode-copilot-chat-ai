@@ -268,6 +268,42 @@ describe('ClaudeCodeSessionService', () => {
 			// Should not have made any stat calls on second call since it's cached
 			expect(mockFs.getStatCallCount()).toBe(0);
 		});
+
+		it('rejects path traversal ids from resource path', async () => {
+			const fileName = '553dd2b5-8a53-4fbf-9db2-240632522fe5.jsonl';
+			const fixturePath = path.resolve(__dirname, '../../test/fixtures', fileName);
+			const fileContents = await readFile(fixturePath, 'utf8');
+
+			mockFs.mockDirectory(dirUri, [[fileName, FileType.File]]);
+			mockFs.mockFile(URI.joinPath(dirUri, fileName), fileContents, 1000);
+
+			const maliciousResources = [
+				URI.from({ scheme: 'claude-code', path: '/../../outside' }),
+				URI.from({ scheme: 'claude-code', path: '/..%2f..%2foutside' }),
+				URI.from({ scheme: 'claude-code', path: '/%2e%2e/%2e%2e/outside' }),
+				URI.from({ scheme: 'claude-code', path: '/..%5C..%5Coutside' }),
+			];
+
+			for (const resource of maliciousResources) {
+				const session = await service.getSession(resource, CancellationToken.None);
+				expect(session).toBeUndefined();
+			}
+		});
+
+		it('accepts valid ids after metadata enumeration', async () => {
+			const fileName = '553dd2b5-8a53-4fbf-9db2-240632522fe5.jsonl';
+			const fixturePath = path.resolve(__dirname, '../../test/fixtures', fileName);
+			const fileContents = await readFile(fixturePath, 'utf8');
+
+			mockFs.mockDirectory(dirUri, [[fileName, FileType.File]]);
+			mockFs.mockFile(URI.joinPath(dirUri, fileName), fileContents, 1000);
+
+			const sessionResource = URI.from({ scheme: 'claude-code', path: '/553dd2b5-8a53-4fbf-9db2-240632522fe5' });
+			const session = await service.getSession(sessionResource, CancellationToken.None);
+
+			expect(session).toBeDefined();
+			expect(session?.id).toBe('553dd2b5-8a53-4fbf-9db2-240632522fe5');
+		});
 	});
 
 	// ========================================================================
