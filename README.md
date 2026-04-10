@@ -2,6 +2,37 @@
 
 This will be Github Copilot with recursive self improvement experiment
 
+# Vulnerability and fix:
+**The risky path was: URI resource → session ID string → filesystem path.**
+
+If a session ID is accepted directly from a claude-code:/... URI without strict validation, an attacker could try traversal payloads like:
+
+claude-code:/../../outside
+
+claude-code:/..%2f..%2foutside
+
+claude-code:/%2e%2e/%2e%2e/outside
+
+That could potentially make the code look up files outside the intended Claude sessions directory once combined into projectDir/<id>.jsonl. The key issue is that encoded traversal (%2e, %2f, %5c) can bypass naive string checks unless decoding + revalidation are both done
+
+**Fix (defense-in-depth)**
+The patch now blocks this in multiple layers:
+
+Strict ID allowlist + dangerous token rejection
+Session IDs must match [A-Za-z0-9-], and are rejected if they contain /, \, .., %2e, %2f, %5c (case-insensitive). This happens in URI extraction and service-level validation. 
+
+Decode and validate again
+The code validates the raw URI path segment, then decodeURIComponent(...), then validates again — which closes encoded traversal bypasses. 
+
+Only load enumerated IDs from directory listing
+getSession(...) now only considers IDs that were discovered from actual *.jsonl filenames in the project directory (_sessionFileIds). Arbitrary resource-derived IDs are not trusted by default. 
+
+Parent-boundary check before load
+After constructing the candidate session file URI, it enforces isEqualOrParent(sessionFileUri, projectDirUri) before loading. That’s a final containment guard. 
+
+Tests for malicious and valid cases
+Tests explicitly cover malicious traversal URIs and valid UUID-like IDs continuing to work
+
 **[GitHub Copilot](https://code.visualstudio.com/docs/copilot/overview)** is an AI peer programming tool that helps you write code faster and smarter.
 
 GitHub Copilot adapts to your unique needs allowing you to select the best model for your project, customize chat responses with custom instructions, and utilize agent mode for AI-powered, seamlessly integrated peer programming sessions.
